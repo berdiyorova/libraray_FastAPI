@@ -3,7 +3,7 @@ from sqlmodel import select
 
 from app.core.database import SessionDep
 from app.core.models.book import BookModel
-from app.schemas import BookOut, BookIn
+from app.schemas.book import BookOut, BookIn
 
 router = APIRouter(
     tags=["books"]
@@ -29,7 +29,7 @@ async def get_books(session: SessionDep) -> list[BookOut]:
 
 
 @router.get("/books/{book_id}", response_model=BookOut, status_code=200)
-async def get_user(session: SessionDep, book_id: int):
+async def get_book(session: SessionDep, book_id: int):
     book = session.exec(select(BookModel).where(BookModel.id == book_id)).one_or_none()
     if book is None:
         raise HTTPException(status_code=404, detail='Book not found')

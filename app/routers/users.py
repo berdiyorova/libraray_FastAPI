@@ -1,25 +1,18 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import select
 
 from app.core.database import SessionDep
 from app.core.models.user import UserModel
-from app.schemas import UserIn, UserOut
+from app.core.security.jwt_token import get_current_active_user
+from app.core.security.permissions import is_admin, is_user, is_admin_or_user
+from app.schemas.user import UserIn, UserOut
 
 router = APIRouter(
     tags=["users"]
 )
 
-@router.post("/users/", response_model=UserOut, status_code=201)
-async def create_user(user: UserIn, session: SessionDep):
-    try:
-        user_in = UserModel(**user.dict())
-        session.add(user_in)
-        session.commit()
-        session.refresh(user_in)
-        return user_in
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=400, detail="Something went wrong")
 
 
 @router.get("/users/", status_code=200)
@@ -28,23 +21,33 @@ async def get_users(session: SessionDep) -> list[UserOut]:
     return users
 
 
-@router.get("/users/{user_id}", response_model=UserOut, status_code=200)
-async def get_user(session: SessionDep, user_id: int):
-    user = session.exec(select(UserModel).where(UserModel.id == user_id)).one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail='User not found')
-    return user
+@router.get("/users/me/", response_model=UserModel)
+async def read_users_me(
+    current_user: Annotated[UserModel, Depends(get_current_active_user)],
+):
+    return current_user
 
 
-@router.delete("/users/{user_id}/", status_code=200)
-async def delete_user(user_id: int, session: SessionDep) -> dict:
-    user = session.get(UserModel, user_id)
-    # user = session.exec(select(UserModel).where(UserModel.id == user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    session.delete(user)
-    session.commit()
-    return {"status": True, "detail": "User is deleted"}
+@router.get("/users/admin/", response_model=UserModel, dependencies=[Depends(is_admin)])
+async def read_users_me(
+    current_user: Annotated[UserModel, Depends(get_current_active_user)],
+):
+    return current_user
+
+
+@router.get("/users/user/", response_model=UserModel, dependencies=[Depends(is_user)])
+async def read_users_me(
+    current_user: Annotated[UserModel, Depends(get_current_active_user)],
+):
+    return current_user
+
+
+@router.get("/users/admin/user/", response_model=UserModel, dependencies=[Depends(is_admin_or_user)])
+async def read_users_me(
+    current_user: Annotated[UserModel, Depends(get_current_active_user)],
+):
+    return current_user
+
 
 
 @router.put("/users/{user_id}/", status_code=200)
